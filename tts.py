@@ -8,7 +8,8 @@ sample_rate = 48000 # 48000
 speaker = 'aidar' # aidar, baya, kseniya, xenia, random
 put_accent = True
 put_yo = True
-device = torch.device('cuda')  # cpu или gpu
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 text = "Хауди Хо, друзья!!!"
 
 model, _ = torch.hub.load(repo_or_dir='snakers4/silero-models',

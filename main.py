@@ -32,7 +32,7 @@ import config
 from fuzzywuzzy import fuzz
 import tts
 import datetime
-from num2t4ru import num2text
+#from num2t4ru import num2text
 import subprocess
 import time
 
@@ -42,11 +42,12 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from deep_translator import GoogleTranslator
 
 from ctypes import POINTER, cast
-from comtypes import CLSCTX_ALL, COMObject
-from pycaw.pycaw import (
-    AudioUtilities,
-    IAudioEndpointVolume
-)
+if sys.platform == 'win32':
+    from comtypes import CLSCTX_ALL, COMObject
+    from pycaw.pycaw import (
+        AudioUtilities,
+        IAudioEndpointVolume
+    )
 
 # import openai
 from gpytranslate import SyncTranslator
@@ -68,12 +69,18 @@ translator = GoogleTranslator(source='ru', target='en')
 translator1 = GoogleTranslator(source='en', target='ru')
 
 # PORCUPINE
-porcupine = pvporcupine.create(
-    access_key=config.PICOVOICE_TOKEN,
-    keywords=['jarvis'],
-    sensitivities=[1]
-)
-# print(pvporcupine.KEYWORDS)
+try:
+    porcupine = pvporcupine.create(
+        access_key=config.PICOVOICE_TOKEN,
+        keywords=['jarvis'],
+        sensitivities=[1]
+    )
+    # print(pvporcupine.KEYWORDS)
+    is_vosk_wake_word = False
+    k_frame_length = porcupine.frame_length
+except ValueError:
+    is_vosk_wake_word = True
+    k_frame_length = 4096
 
 # VOSK
 model = vosk.Model(r"models/vosk-model-small-ru-0.22")
@@ -110,7 +117,10 @@ def gpt_answer(message: str) -> str:
 # play(f'{CDIR}\\sound\\ok{random.choice([1, 2, 3, 4])}.wav')
 def play(phrase, wait_done=True):
     global recorder
-    filename = f"{CDIR}\\sound\\"
+    if sys.platform == 'win32':
+        filename = f"{CDIR}\\sound\\"
+    else:
+        filename = f"{CDIR}/sound/"
 
     if phrase == "greet":  # for py 3.8
         filename += f"greet{random.choice([1, 2, 3])}.wav"
@@ -217,7 +227,7 @@ def execute_cmd(cmd: str, voice: str):
     elif cmd == 'ctime':
         # current time
         now = datetime.datetime.now()
-        text = "Сейч+ас " + num2text(now.hour) + " " + num2text(now.minute)
+        text = "Сейч+ас " + str(now.hour) + " " + str(now.minute)
         tts.va_speak(text)
 
     elif cmd == 'joke':
@@ -317,7 +327,10 @@ def execute_cmd(cmd: str, voice: str):
 
 
 # `-1` is the default input audio device.
-recorder = PvRecorder(device_index=config.MICROPHONE_INDEX, frame_length=porcupine.frame_length)
+recorder = PvRecorder(
+        device_index=config.MICROPHONE_INDEX,
+        frame_length=k_frame_length
+    )
 recorder.start()
 print('Using device: %s' % recorder.selected_device)
 
@@ -330,14 +343,26 @@ ltc = time.time() - 1000
 while True:
     try:
         pcm = recorder.read()
-        keyword_index = porcupine.process(pcm)
-
-        if keyword_index >= 0:
-            recorder.stop()
-            play("greet", True)
-            print("Yes, sir.")
-            recorder.start()  # prevent self recording
-            ltc = time.time()
+        sp_i = struct.pack("h" * len(pcm), *pcm)
+        if porcupine and not is_vosk_wake_word:
+            keyword_index = porcupine.process(pcm)
+            if keyword_index >= 0:
+                recorder.stop()
+                play("greet", True)
+                print("Yes, sir.")
+                recorder.start()  # prevent self recording
+                ltc = time.time()
+        elif is_vosk_wake_word:
+             if kaldi_rec.AcceptWaveform(sp):
+                result = json.loads(kaldi_rec.Result())
+                text = result.get("text", "").lower()
+                print(f"Vosk: {text}")
+                if WAKE_WORD in text:
+                    recorder.stop()
+                    play("greet", True)
+                    print("Yes, sir.")
+                    recorder.start()
+                    ltc = time.time()
 
         while time.time() - ltc <= 10:
             pcm = recorder.read()
@@ -346,8 +371,16 @@ while True:
             if kaldi_rec.AcceptWaveform(sp):
                 if va_respond(json.loads(kaldi_rec.Result())["text"]):
                     ltc = time.time()
-
+            
+            if time.time() - ltc > 10:
+                kaldi_rec.Result()
+                print(1)
                 break
+
+        if time.time() - ltc > 10:
+            kaldi_rec.Result()
+            ltc = time.time() - 9
+
 
     except Exception as err:
         print(f"Unexpected {err=}, {type(err)=}")

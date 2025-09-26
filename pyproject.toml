@@ -1,0 +1,26 @@
+[project]
+name = "jarvis-jp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "comtypes>=1.4.12",
+    "deep-translator>=1.11.4",
+    "dotenv>=0.9.9",
+    "fuzzywuzzy>=0.18.0",
+    "gpytranslate>=2.0.0",
+    "omegaconf>=2.3.0",
+    "pvporcupine>=3.0.5",
+    "pvrecorder>=1.2.7",
+    "pyautogui>=0.9.54",
+    "pycaw>=20240210",
+    "python-levenshtein>=0.27.1",
+    "rich>=14.1.0",
+    "simpleaudio>=1.0.4",
+    "sounddevice>=0.5.2",
+    "torch>=2.8.0",
+    "transformers>=4.56.2",
+    "vosk>=0.3.45",
+    "wheel>=0.45.1",
+]
